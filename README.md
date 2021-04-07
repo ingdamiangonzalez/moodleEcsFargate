@@ -1,2 +1,3 @@
-# moodleEcsFargate
-Solucion para desplegar moodle en ECS utilizando fargate
+| AWS Region Code | Name                  | Launch                                                                                                                                                                                                                                                |
+| --------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| us-east-1       | US East (N. Virginia) | [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=Moodle&templateURL=https://deploymoodleecs.s3.amazonaws.com/moodleEcsFargate.yaml) |
