@@ -1,5 +1,8 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: Desplegar moodle con fargate, utilizando docker de bitnami
+
+####################################### Parámetros de entrada #######################################
+
 Parameters:
   VPC:
     Type: AWS::EC2::VPC::Id
@@ -92,8 +95,11 @@ Parameters:
     MaxLength: '41'
     AllowedPattern: '[a-zA-Z0-9]*'
     ConstraintDescription: must contain only alphanumeric characters.
+####################################### /Parámetros de entrada #######################################
+
 
 Resources:
+####################################### Cluster ECS #######################################
   Cluster:
     Type: AWS::ECS::Cluster
     Properties:
@@ -139,7 +145,11 @@ Resources:
               awslogs-region: !Ref AWS::Region
               awslogs-group: !Ref LogGroup
               awslogs-stream-prefix: ecs
-  # Rol para ECS
+    LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ['', [/ecs/, !Ref ServiceName, TaskDefinition]]  
+  # Rol para la ejecución
   ExecutionRole:
     Type: AWS::IAM::Role
     Properties:
@@ -152,7 +162,7 @@ Resources:
             Action: 'sts:AssumeRole'
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'
-  # Rol para los contenedores
+  # Rol para el task
   TaskRole:
     Type: AWS::IAM::Role
     Properties:
@@ -163,6 +173,7 @@ Resources:
             Principal:
               Service: ecs-tasks.amazonaws.com
             Action: 'sts:AssumeRole'
+  # Rol para el auto escalado
   AutoScalingRole:
     Type: AWS::IAM::Role
     Properties:
@@ -186,32 +197,6 @@ Resources:
           FromPort: !Ref ContainerPort
           ToPort: !Ref ContainerPort
           SourceSecurityGroupId: !Ref LoadBalancerSecurityGroup
-
-  LoadBalancerSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: !Join ['', [!Ref ServiceName, LoadBalancerSecurityGroup]]
-      VpcId: !Ref VPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: !Ref LoadBalancerPort
-          ToPort: !Ref LoadBalancerPort
-          CidrIp: 0.0.0.0/0
-
-  RdsSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    DependsOn: 
-      - ContainerSecurityGroup
-    Properties:
-      GroupDescription: !Join ['', [!Ref ServiceName, RdsSecurityGroup]]
-      VpcId: !Ref VPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 3306
-          ToPort: 3306
-          SourceSecurityGroupId: !Ref ContainerSecurityGroup
-
-
   Service:
     Type: AWS::ECS::Service
     # Creamos el servicio si el lisener del load balancer está desplegado
@@ -240,61 +225,6 @@ Resources:
         - ContainerName: !Ref ServiceName
           ContainerPort: !Ref ContainerPort
           TargetGroupArn: !Ref TargetGroup
-  TargetGroup:
-    Type: AWS::ElasticLoadBalancingV2::TargetGroup
-    Properties:
-      HealthCheckIntervalSeconds: 300
-      HealthCheckPath: !Ref HealthCheckPath
-      HealthCheckTimeoutSeconds: 120
-      UnhealthyThresholdCount: 10
-      HealthyThresholdCount: 10
-      Name: !Join ['', [!Ref ServiceName, TargetGroup]]
-      Port: !Ref ContainerPort
-      Protocol: HTTP
-      Matcher:
-        HttpCode: 200-299
-      TargetGroupAttributes:
-        - Key: deregistration_delay.timeout_seconds
-          Value: 3600 
-      TargetType: ip
-      VpcId: !Ref VPC
-  ListenerHTTPS:
-    Type: AWS::ElasticLoadBalancingV2::Listener
-    Properties:
-      DefaultActions:
-        - TargetGroupArn: !Ref TargetGroup
-          Type: forward
-      LoadBalancerArn: !Ref LoadBalancer
-      Port: !Ref LoadBalancerPort
-      Protocol: HTTPS
-      Certificates:
-        - CertificateArn: !Ref Certificate
-  LoadBalancer:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Properties:
-      LoadBalancerAttributes:
-        - Key: idle_timeout.timeout_seconds
-          Value: 60
-      Name: !Join ['', [!Ref ServiceName, LoadBalancer]]
-      Scheme: internet-facing
-      SecurityGroups:
-        - !Ref LoadBalancerSecurityGroup
-      Subnets:
-        - !Ref SubnetA
-        - !Ref SubnetB
-  DNSRecord:
-    Type: AWS::Route53::RecordSet
-    Properties:
-      HostedZoneName: !Join ['', [!Ref HostedZoneName, .]]
-      Name: !Join ['', [!Ref Subdomain, ., !Ref HostedZoneName, .]]
-      Type: A
-      AliasTarget:
-        DNSName: !GetAtt LoadBalancer.DNSName
-        HostedZoneId: !GetAtt LoadBalancer.CanonicalHostedZoneID
-  LogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Join ['', [/ecs/, !Ref ServiceName, TaskDefinition]]
   AutoScalingTarget:
     Type: AWS::ApplicationAutoScaling::ScalableTarget
     Properties:
@@ -316,6 +246,64 @@ Resources:
         ScaleInCooldown: 300
         ScaleOutCooldown: 300
         TargetValue: !Ref AutoScalingTargetValue
+####################################### /Cluster ECS #######################################
+
+####################################### Load balancer #######################################
+  LoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      LoadBalancerAttributes:
+        - Key: idle_timeout.timeout_seconds
+          Value: 60
+      Name: !Join ['', [!Ref ServiceName, LoadBalancer]]
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref LoadBalancerSecurityGroup
+      Subnets:
+        - !Ref SubnetA
+        - !Ref SubnetB
+  ListenerHTTPS:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - TargetGroupArn: !Ref TargetGroup
+          Type: forward
+      LoadBalancerArn: !Ref LoadBalancer
+      Port: !Ref LoadBalancerPort
+      Protocol: HTTPS
+      Certificates:
+        - CertificateArn: !Ref Certificate
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 300
+      HealthCheckPath: !Ref HealthCheckPath
+      HealthCheckTimeoutSeconds: 120
+      UnhealthyThresholdCount: 10
+      HealthyThresholdCount: 10
+      Name: !Join ['', [!Ref ServiceName, TargetGroup]]
+      Port: !Ref ContainerPort
+      Protocol: HTTP
+      Matcher:
+        HttpCode: 200-299
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 3600 
+      TargetType: ip
+      VpcId: !Ref VPC
+  LoadBalancerSecurityGroup:
+  Type: AWS::EC2::SecurityGroup
+  Properties:
+    GroupDescription: !Join ['', [!Ref ServiceName, LoadBalancerSecurityGroup]]
+    VpcId: !Ref VPC
+    SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: !Ref LoadBalancerPort
+        ToPort: !Ref LoadBalancerPort
+        CidrIp: 0.0.0.0/0
+####################################### /Load balancer #######################################
+####################################### Base de datos RDS #######################################
+
   MyDB:
     Type: 'AWS::RDS::DBInstance'
     DependsOn: 
@@ -332,7 +320,35 @@ Resources:
       VPCSecurityGroups: 
         - !GetAtt RdsSecurityGroup.GroupId
 
+  RdsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: 
+      - ContainerSecurityGroup
+    Properties:
+      GroupDescription: !Join ['', [!Ref ServiceName, RdsSecurityGroup]]
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref ContainerSecurityGroup
+
+####################################### /Base de datos RDS #######################################
+####################################### Route 53 #######################################
+  DNSRecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      HostedZoneName: !Join ['', [!Ref HostedZoneName, .]]
+      Name: !Join ['', [!Ref Subdomain, ., !Ref HostedZoneName, .]]
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt LoadBalancer.DNSName
+        HostedZoneId: !GetAtt LoadBalancer.CanonicalHostedZoneID
+####################################### /Route 53 #######################################
+
+####################################### Outputs #######################################
 Outputs:
   Endpoint:
     Description: Endpoint
     Value: !Join ['', ['https://', !Ref DNSRecord]]
+####################################### /Outputs #######################################
