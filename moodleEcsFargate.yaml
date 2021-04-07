@@ -33,10 +33,10 @@ Parameters:
     Default: /
   HostedZoneName:
     Type: String
-    Default: deceroait.com
+    Default: tudominio.com
   Subdomain:
     Type: String
-    Default: moodle
+    Default: mimoodle
   # Minima cantidad de contenedores para autoescalado
   MinContainers:
     Type: Number

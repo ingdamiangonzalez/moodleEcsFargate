@@ -16,15 +16,15 @@ Estos dockers en ECS se comunican con RDS, donde se almacenan los datos de la ap
 
 ![Arquitectura](images/arquitectura.png)
 
-## Cómo lo puedo desplegar?
+# Cómo lo puedo desplegar este stack?
 
-# Pre requisitos
+### Pre requisitos
 
-Antes de desplegarlo, debemos cumplir con una serie de pre-requisitos
+Antes de desplegar, debemos cumplir con una serie de pre-requisitos
 
-- VPC con por lo menos 2 subnets
-- Hosted zone en route 53 para poder crear el registro de acceso al subdominio
-- Certificado en ACM para ser utilizado por el load balancer.
+- VPC con por lo menos 2 subnets, la VPC y estas subnets se nos consultan al crear el stack.
+- Hosted zone en route 53 con un dominio para poder crear el registro de acceso.
+- Certificado en ACM para ser utilizado por el load balancer, nos solicita el ARN el stack al iniciar.
 
 Si cumplimos con los requisitos podemos desplegar el stack en N. Virginia haciendo click en la imágen que se ve debajo.
 
@@ -32,8 +32,8 @@ Si cumplimos con los requisitos podemos desplegar el stack en N. Virginia hacien
 | --------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | us-east-1 | US East (N. Virginia) | [![cloudformation-launch-stack](images/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=Moodle&templateURL=https://deploymoodleecs.s3.amazonaws.com/moodleEcsFargate.yaml) |
 
-### To DO!
+### Futuras mejoras
 
 - EFS: Agregar EFS en los contenedores para poder persistir los datos
 - Cloudfront: Agregar cloudfront como CDN para el acceso.
--
+- RDS multi zona.
